@@ -12,11 +12,9 @@ import UIKit
 class RepositoryTableCell: UITableViewCell {
 
     @IBOutlet weak var repoNameLabel: UILabel! // Used to represent repository name
-
     @IBOutlet weak var forksLabel: UILabel! // Used to represent number of forks
-
     @IBOutlet weak var starsLabel: UILabel! // Used to represent number of stars
-    
+
     static let identifier = "RepositoryTableCell" // Identifier for cell
-    
+
 }

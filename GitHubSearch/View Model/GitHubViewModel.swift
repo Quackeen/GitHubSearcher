@@ -9,95 +9,95 @@
 
 import Foundation
 
-// Delegate for the ViewModel to have an update method that will reload the search results in a UITableView's data
-protocol SearchResultsDelegate: class {
-    func update()
-}
-
-// Delegate for the ViewModel to have an update method that will reload the EntireUser data
-protocol EntireUserDelegate: class {
-    func update()
-}
-
-// Delegate for the ViewModel to have an update method that will reload the repository results in a UITableView's data
-protocol RepositoriesDelegate: class {
-    func update()
-}
-
-public class GitHubViewModel {
-
-    // Create delegates
-    weak var searchResultsDelegate: SearchResultsDelegate?
-    weak var entireUserDelegate: EntireUserDelegate?
-    weak var repositoriesDelegate: RepositoriesDelegate?
-
-    // Array of Users that will call to get the entire information when set
-    var searchResults = [User]() {
-        didSet {
-            searchResultsDelegate?.update()
-            for user in self.searchResults {
-                getEntireUser(user: user)
-            }
-        }
-    }
+class GitHubViewModel {
 
     // Array of EntireUsers to hold the entire information of the users found
-    var entireUsers = [EntireUser]() {
+    private var users = [EntireUser]() {
         didSet {
-            entireUserDelegate?.update()
+            update?()
         }
     }
+    private var update: (()->Void)?
+    private var currentSearch: DispatchWorkItem?
 
-    // Array of Repository's to hold user repositories for detail view
-    var repositoriesResults = [Repository]() {
-        didSet {
-            repositoriesDelegate?.update()
-        }
+    func bind(_ update: @escaping ()->Void) {
+        self.update = update
+    }
+
+    func unbind() {
+        self.update = nil
     }
 }
 
-public extension GitHubViewModel {
+extension GitHubViewModel {
 
     // Function to make service call to get search results
     func getSearchResults(searchTerm: String) {
-        // Calls on service class method to make a network call if isStubbing is false or use sample JSON info if
-        // isStubbing is true to avoid GitHub's rate limit
-        service.getSearchUsers(isStubbing: true, searchTerm: searchTerm) { [weak self] GitHubResult in
-            switch GitHubResult {
-            case .success(let results):
-                self?.searchResults = results
-            case .failure(let error):
-                print("GitHub Error: \(error.localizedDescription)")
-            }
+        // Calls on service class method to make a network call
+        guard !searchTerm.isEmpty,
+            let sanitized = searchTerm.addingPercentEncoding(withAllowedCharacters: .urlHostAllowed) else {
+                return
         }
+        currentSearch?.cancel()
+
+        let search = DispatchWorkItem(block: { [weak self] in
+            self?.users = []
+            service.getSearchUsers(searchTerm: sanitized) { [weak self] result in
+                switch result {
+                    case .success(let results):
+                        for user in results {
+                            self?.getEntireUser(user: user)
+                        }
+                    case .failure(let error):
+                        print("GitHub Error: \(error.localizedDescription)")
+                }
+            }
+        })
+
+        currentSearch = search
+        DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 0.45,
+                                                       execute: search)
     }
 
     // Function to make service call to get full information of Users
-    internal func getEntireUser(user: User) {
-        // Calls on service class method to make a network call if isStubbing is false or use sample JSON info if
-        // isStubbing is true to avoid GitHub's rate limit
-        service.getEntireUser(isStubbing: true, user: user) { [weak self] GitHubResult in
-            switch GitHubResult {
-            case .success(let results):
-                self?.entireUsers.append(results)
-            case .failure(let error):
-                print("GitHub Error: \(error.localizedDescription)")
+    func getEntireUser(user: User) {
+        service.getEntireUser(user: user) { [weak self] result in
+            switch result {
+                case .success(let results):
+                    self?.users.append(results)
+                case .failure(let error):
+                    print("GitHub Error: \(error.localizedDescription)")
             }
         }
-    }
-
-    // Function to make service call to get repository information
-    internal func getRepositories(user: EntireUser) {
-        // Calls on service class method to make a network call if isStubbing is false or use sample JSON info if
-        // isStubbing is true to avoid GitHub's rate limit
-        service.getUserRepositories(isStubbing: true, repoURL: user.repos_url) { [weak self] GitHubResult in
-            switch GitHubResult {
-            case .success(let repos):
-                self?.repositoriesResults = repos
-            case .failure(let error):
-                print("GitHub Error: \(error.localizedDescription)")
-            }
-        }
-
     }
 }
+
+// Accessors for all User info
+extension GitHubViewModel {
+
+    var searchResultsCount: Int {
+        return users.count
+    }
+
+    func name(_ index: Int) -> String {
+        return users[index].login
+    }
+
+    func repoCount(_ index: Int) -> String {
+        let user = users[index]
+        return "Repos: " + String(user.publicRepoCount)
+    }
+
+    func imageUrl(_ index: Int) -> URL? {
+        let picUrl = users[index].avatarUrl
+        return URL(string: picUrl)
+    }
+
+    // Function to make ViewModel for a Single User's Repos
+    func makeGitHubUserViewModel(index: Int) -> GitHubUserViewModel {
+        let user = users[index]
+        return GitHubUserViewModel(user)
+    }
+
+}
+

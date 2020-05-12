@@ -12,17 +12,15 @@ struct GitHubAPI {
 
     let head = "https://api.github.com/search/users?q="
 
-    var searchQuery: String!
+    let searchQuery: String
 
-    init(_ search: String? = nil) {
-        self.searchQuery = search
+    init(_ search: String) {
+        searchQuery = search
     }
 
     var searchURL: URL? {
-        guard let search = searchQuery else { return nil }
-        let formatedSearch = search.replacingOccurrences(of: " ", with: "%20")
+        let formatedSearch = searchQuery.replacingOccurrences(of: " ", with: "%20")
         return URL(string: head + formatedSearch)
     }
-
 
 }
