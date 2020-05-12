@@ -2,7 +2,7 @@
 //  GitHubAPI.swift
 //  GitHubSearch
 //
-//  Created by Consultant on 5/10/20.
+//  Created by Joaquin Antonio Villegas on 5/10/20.
 //  Copyright © 2020 MAC. All rights reserved.
 //
 
